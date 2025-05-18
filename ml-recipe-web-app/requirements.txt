@@ -1,0 +1,8 @@
+pandas
+spacy
+scikit-learn
+sklearn-crfsuite
+joblib
+flask
+flask-cors
+numpy
