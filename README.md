@@ -107,7 +107,3 @@ Open a web browser and navigate to `http://127.0.0.1:5000` to use the Recipe Fin
 - The web app uses a pre-trained CRF model to predict recipe tags and match recipes based on the user query.
 - Depending on the training script you use, the model filename may differ (`crf_ner_model.pkl` from train.py versus `crf_food_recipes_20pct.pkl` from train2.py). Update `app.py` accordingly if needed.
 - The dataset and the approach for predictions rely on ingredients and tags extraction.
-
-## License
-
-[Specify license information if required]
