@@ -4,8 +4,9 @@ import spacy
 import sklearn_crfsuite
 from sklearn_crfsuite import metrics
 import joblib
+import math
 
-# 1) Load & Sample 20% of the dataset
+# Load & Sample 20% of the dataset
 def load_and_sample(url: str, sample_frac: float = 0.2, random_state: int = 42):
     print("Loading Parquet data from URL...")
     df_full = pd.read_parquet(url, engine="pyarrow")
@@ -14,13 +15,12 @@ def load_and_sample(url: str, sample_frac: float = 0.2, random_state: int = 42):
     print(f"  Sampled {sample_frac*100:.0f}% → {len(df_sample)} rows")
     return df_sample
 
-# 2) Split into train/dev
+#  Split into train/dev
 def split_data(df: pd.DataFrame, dev_frac: float = 0.2, random_state: int = 42):
     df_train, df_dev = train_test_split(df, test_size=dev_frac, random_state=random_state, shuffle=True)
     print(f"Train size: {len(df_train)}, Dev size: {len(df_dev)}")
     return df_train, df_dev
-
-# 3) Feature extraction helpers
+# Feature extraction helpers
 nlp = spacy.load("en_core_web_sm", disable=["parser", "ner", "lemmatizer"])
 def token2features(tok, prev_tok, next_tok, tag_set):
     feats = {
@@ -44,6 +44,7 @@ def token2features(tok, prev_tok, next_tok, tag_set):
         feats["EOS"] = True
     return feats
 
+# Convert documents to feature sets and labels
 def doc2features_and_labels(row):
     text = (
         f"{row['name']}. Description: {row['description']}."
@@ -59,12 +60,12 @@ def doc2features_and_labels(row):
         labs.append("ING" if tok.text.lower() in tag_set else "O")
     return feats, labs
 
-# 4) Build corpora
+# Build corpora
 def build_corpus(df):
     X, y = zip(*df.apply(doc2features_and_labels, axis=1))
     return list(X), list(y)
 
-# 5) Train & evaluate CRF
+# Train & evaluate CRF
 def train_and_evaluate(df_train, df_dev):
     print("Building feature corpora…")
     X_train, y_train = build_corpus(df_train)
@@ -93,11 +94,24 @@ def train_and_evaluate(df_train, df_dev):
     print(report)
     print(f"Overall Dev Accuracy: {accuracy:.4f}\n")
 
+    # Calculate perplexity
+    total_log_prob = 0.0
+    total_tokens = 0
+    for feats, true_labels in zip(X_dev, y_dev):
+        marginals = crf.predict_marginals_single(feats)
+        for token_idx, token_marginals in enumerate(marginals):
+            probability = token_marginals.get(true_labels[token_idx], 1e-10)
+            total_log_prob += math.log(probability)
+        total_tokens += len(true_labels)
+    perplexity = math.exp(- total_log_prob / total_tokens)
+    print(f"Perplexity on Dev Set: {perplexity:.4f}\n")
+
     # Save model
-    model_path = "crf_food_recipes_20pct.pkl"
+    model_path = "crf_food_recipes_20v2pct.pkl"
     joblib.dump(crf, model_path)
     print(f"Model saved to: {model_path}")
 
+# Main function to load data, train and evaluate the model
 def main():
     HF_PARQUET_URL = "https://huggingface.co/datasets/jojogo9/Food_Recipes/resolve/main/food_recipes.parquet"
     df = load_and_sample(HF_PARQUET_URL, sample_frac=0.2)
